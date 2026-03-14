@@ -41,6 +41,13 @@ description: {一句话说明该技能的用途和触发场景}
 逻辑复杂处附伪代码辅助说明。
 ```
 
+## 路径写法规范
+
+`[Implementation Steps]` 中所有文件路径必须使用 `~/` 表示目标工程根目录：
+- ✅ `~/package.json`、`~/src/index.ts`、`~/internal/handler/user.go`
+- ❌ 任何绝对路径（`/Users/...`）
+- ❌ god 工作台自身的路径（`projects/xxx/...`）
+
 ## 输出路径
 
 ```
