@@ -8,3 +8,5 @@
 - `04-skill-spec.md`：SKILL.md 规范
 - `05-project-isolation.md`：项目隔离原则
 - `06-memory.md`：记忆机制（读取与写入教训）
+
+你可以使用的技能见 `.agent/skills/` 目录：

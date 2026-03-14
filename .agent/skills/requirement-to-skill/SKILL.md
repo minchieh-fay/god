@@ -1,6 +1,6 @@
 ---
 name: requirement-to-skill
-description: 将用户的需求描述转化为可执行的 SKILL.md 施工图。当用户在 projects/ 下提出新需求、要求生成施工图、或需要把模糊需求变成具体实施步骤时使用。
+description: 将用户的需求描述转化为可执行的 SKILL.md 施工图。当用户拖入 projects/{project_name}/{用户指定目录}/{需求名}.md 文件，或要求生成施工图时使用。
 ---
 
 # 需求转化为施工图 (Demand Distillation)
