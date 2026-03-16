@@ -6,17 +6,18 @@
 
 ## 使用流程
 
-**Step 1**：在 `projects/` 下新建或找到已有项目目录，如 `projects/my-project/`
+**Step 1**：在 `projects/` 下新建一个与你项目同名的目录，如 `projects/my-project/`
 
-**Step 2**：如果是新项目，让 Antigravity 帮你生成 `ARCH.md`（技术档案）；
-如果项目已有源码，把源码路径告诉 Antigravity，它会自动分析并生成。
-参考本目录下的 `ARCH.md` 了解 ARCH.md 的格式。
+**Step 2**：在项目目录下（子目录随意创建）写需求文件，参考 `add-mail.md` 的格式。
+如果需求中涉及已有源码，在需求文件里写上源码的本地路径即可（参考 `add-mail.md` 的「源码路径」字段）。
 
-**Step 3**：在项目目录下（子目录随意）创建需求文件，参考 `add-mail.md` 的格式书写。
+**Step 3**：将需求文件**拖拽到 Antigravity 聊天框**，发送"出施工图"。
 
-**Step 4**：将需求文件**拖拽到 Antigravity 聊天框**，发送"出施工图"或"分析这个需求"。
+**Step 4**：Antigravity 会自动处理以下事项，无需你手动操作：
+- 若项目下没有 `ARCH.md`，自动根据需求文件中的源码路径分析生成；源码路径为空则生成模板让你填写
+- 分析完成后生成 `SKILL.md` 施工图
 
-**Step 5**：Antigravity 会在需求文件同级的同名目录下生成 `SKILL.md`，参考 `add-mail/SKILL.md` 了解格式。
+**Step 5**：在需求文件同级的同名目录下取回施工图，参考 `add-mail/SKILL.md` 了解格式。
 
 **Step 6**：将生成的 `{需求名}/SKILL.md` 整个目录复制到**目标工程**的 `.agent/skills/` 下，交给 Cursor / Trae 执行。
 
