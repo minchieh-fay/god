@@ -1,1 +1,4 @@
 .cursorrules
+projects/*
+!projects/sample
+!projects/sample/**
