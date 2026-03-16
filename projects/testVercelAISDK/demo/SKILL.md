@@ -1,39 +1,121 @@
 ---
 name: demo
-description: 开发一个基于Vercel AI SDK的CLI应用，能通过Tool调用获取电脑磁盘空间并由大模型解答
+description: 使用 Bun 和 Vercel AI SDK 构建一个能够查询系统磁盘空间的 CLI 工具。当需要测试 LLM 和 Tool (技能) 的联动时使用。
 ---
 
 ## [Context]
-当前需求背景是测试 Vercel AI SDK 中关于 LLM、Tools 以及 Skills 的联合调用链路。
-涉及的项目模块为基于 Bun + TypeScript 构建的基础命令行（CLI）应用程序。应用需要在用户运行 `bun run dev` 后接收自然语言输入（如：“我这个电脑磁盘空间”），并在不修改代码（不硬编码磁盘数据）的前提下，通过工具自动获取宿主机的真实磁盘信息，交由大模型整理后输出结果。工程内必须包含详细的中文注释。
+当前需求旨在测试 Vercel AI SDK 的核心能力，包括 LLM 的调用以及与外部 Tools (如查询磁盘空间) 的联动。
+涉及的项目范围为一个新初始化的 Bun + TypeScript 命令行项目 (CLI/TUI)。根据 `ARCH.md` 规范，代码中禁止硬编码磁盘空间等环境信息，并且必须加入详细的中文注释。
 
 ## [Blueprint]
-方案设计：做什么、为什么这样做
-- **交互层**：利用 Node.js 核心的 `readline/promises` 模块构建一个简单的终端问答循环（REPL），接收用户输入。
-- **AI 引擎层**：引入 Vercel AI SDK (`ai`) 和对应的模型 Provider，通过设置 `maxSteps` 配合 `generateText` 启用 multi-step 工具调用能力。
-- **工具层 (Tools)**：定义一个名为 `checkComputerDiskSpace` 的 tool。为避免硬编码，在 tool 内部使用原生 `child_process.exec` 调用 `df -h`（适配 mac OS）来动态读取真实磁盘占用率，并将标准输出返回给大模型。
-- **代码规范**：全程使用详细的中文注释解释每一步的函数职责与变量用途。
+- **方案设计**：
+  1. 使用 Bun 自身的构建工具进行项目初始化。
+  2. 引入 `ai` 和 `@ai-sdk/openai` 等依赖以接入大模型。
+  3. 创建一个 `checkDiskSpace` 的工具 (Tool)，内部使用 Node.js 的 `child_process` 模块动态执行 `df -h` 指令获取当前系统的真实磁盘信息。
+  4. 使用 Node.js 的 `readline` 模块提供基本的交互式终端 (CLI/TUI)，接收问题的输入（例如："我这个电脑磁盘空间"）。
+  5. 将用户输入传递给 Vercel AI SDK 的 `generateText` 或 `streamText`，让大模型自主决定调用 `checkDiskSpace` 并返回结果。
 
-需注意的 3 个易错点：
-1. **Tool 定义格式验证失败**：Vercel AI SDK 强依赖 `zod` 进行工具入参验证。如果未正确使用 `zod` 定义参数 Schema（哪怕不需要参数也要返回特定的空对象或使用 z.object({})），会导致调用失败。
-2. **多步执行未开启 (maxSteps)**：由于大模型首先需要判定应该调用 tool，获得 tool 返回后才能生成最终回答。如果没有在配置中设置 `maxSteps: 5`（或其他大于1的数字），调用将在触发 tool 后直接停止，不会把工具结果给到最终输出。
-3. **平台兼容与硬编码混淆**：使用 shell 命令读取磁盘时命令执行可能会抛出异常（例如未对标准错误输出 `stderr` 做安全处理），直接抛错会导致整个 CLI 崩溃，需要针对命令执行添加 `try-catch` 捕获以将错误作为安全文本抛给 LLM。
+- **易错点 (3个)**：
+  1. **异步 Tool 调用的作用域**：在使用 Vercel AI SDK 时，声明 tool 需要确保返回的是 Promise，且在 CLI 交互循环中，不当的 `await` 可能导致输入流阻塞。
+  2. **跨平台兼容性死角**：使用 `child_process.exec('df -h', ...)` 是针对 macOS/Linux 的系统指令。若在 Windows 平台运行将直接报错，此处并未做跨平台降级处理（仅根据 MacOS 的默认场景处理）。
+  3. **模型识别 Tool 的上下文限制**：在传递给 LLM 参数时，需要开启 `maxSteps: 5` (或类似设定) 允许多轮调用，否则 LLM 会直接输出需要调用 Tool 而无法拿到执行后的真实结果。
 
 ## [Implementation Steps]
-1. `package.json` 依赖配置
-   - **文件位置**：`/Users/minchiehfay/Desktop/god/projects/testVercelAISDK/package.json` （如果不存在则初始化）
-   - **具体操作**：安装所需依赖 `bun add ai @ai-sdk/openai zod`（假设采用 openai 接口，或根据实际 provider 调整）；在 `scripts` 里增加 `"dev": "bun run src/index.ts"`。
-   
-2. 创建主入口文件与交互循环
-   - **文件位置**：`/Users/minchiehfay/Desktop/god/projects/testVercelAISDK/src/index.ts`
-   - **具体操作**：引入 `readline/promises`，建立一个持续监听用户输入的 `while` 循环。
 
-3. 实现 Tools 判断与调用
-   - **文件位置**：`/Users/minchiehfay/Desktop/god/projects/testVercelAISDK/src/index.ts`
-   - **具体操作**：
-     导入 `z` (Zod) 和 `tool` (来自 `ai` 包)。定义 `tools` 对象，在其中添加 `checkDiskSpace`。
-     在工具的 execute 逻辑中使用 Node.js 的 `util.promisify(require('child_process').exec)` 执行 `df -h /` 命令，并返回输出字符串。注意用中文进行大量注释说明工具用意。禁止写入任何写死空间的假数据。
+**1. 初始化项目与配置文件**
+在 `~/` 目录下执行 Bun 的初始化并安装必要的依赖。(如果 `~/package.json` 已存在请跳过此初始化部分，仅安装依赖)：
+```bash
+# 伪代码执行
+bun init -y
+bun add ai @ai-sdk/openai dotenv
+bun add -d @types/node
+```
 
-4. 串联大模型与流式输出
-   - **文件位置**：`/Users/minchiehfay/Desktop/god/projects/testVercelAISDK/src/index.ts`
-   - **具体操作**：接收用户的终端输入，作为 `prompt` 传递给 `generateText` 函数。配置所需模型参数，并传入上方写好的 `tools` 以及设置 `maxSteps: 3` 以支持代理流。最终将大模型的 `text` 打印在终端，并等待下一轮提问。
+**2. 编写入口代码与工具定义**
+创建或更新文件 `~/index.ts`。在文件顶部引入依赖，并且根据要求**加入详细的中文注释**：
+```typescript
+// 在 ~/index.ts 中写入以下基础代码框架
+import { openai } from '@ai-sdk/openai';
+import { generateText, tool } from 'ai';
+import * as child_process from 'node:child_process';
+import { promisify } from 'node:util';
+import * as readline from 'node:readline';
+// 配置环境变量读取 (假设有个 .env 文件存放 OPENAI_API_KEY)
+import 'dotenv/config';
+
+// 1. 将 exec 转换为 Promise 形式，方便后续使用 async/await
+const execAsync = promisify(child_process.exec);
+```
+
+**3. 定义 `checkDiskSpace` 工具**
+继续在 `~/index.ts` 中，追加 Vercel AI SDK 的 tool 定义：
+```typescript
+import { z } from 'zod';
+
+// 2. 定义一个给大模型调用的工具: 查询磁盘空间
+const checkDiskSpaceTool = tool({
+  description: '查询当前系统计算机的磁盘剩余空间',
+  parameters: z.object({}), // 不需要参数
+  execute: async () => {
+    try {
+      // 动态执行 df -h，禁止硬编码
+      const { stdout } = await execAsync('df -h');
+      return stdout;
+    } catch (error) {
+      return `执行命令失败: ${error}`;
+    }
+  },
+});
+```
+
+**4. 编写 CLI 的交互逻辑**
+继续在 `~/index.ts` 末尾，追加 Readline 的 CLI 并融合 SDK 调用：
+```typescript
+// 3. 创建终端读取器，用于不断接收用户的控制台输入
+const rl = readline.createInterface({
+  input: process.stdin,
+  output: process.stdout
+});
+
+const askQuestion = () => {
+  rl.question('请输入你的问题 (例如: 我这个电脑磁盘空间): ', async (userInput) => {
+    if (!userInput) {
+      askQuestion();
+      return;
+    }
+
+    if (userInput.toLowerCase() === 'exit' || userInput.toLowerCase() === 'quit') {
+      rl.close();
+      return;
+    }
+
+    try {
+      console.log('🤖 思考中，可能会调用工具...');
+      
+      // 4. 调用大模型，允许多轮步骤以执行 tool
+      const result = await generateText({
+        model: openai('gpt-4o'), // 或配置的其他模型
+        prompt: userInput,
+        tools: {
+          checkDiskSpace: checkDiskSpaceTool
+        },
+        maxSteps: 3, // 必须允许多轮交互才能得到 tool 返回值再输出
+      });
+
+      console.log(`\n🤖 回答:\n${result.text}\n`);
+    } catch (err) {
+      console.error('\n❌ 发生错误:\n', err);
+    }
+
+    // 重新等待提问
+    askQuestion();
+  });
+};
+
+// 启动 CLI
+console.log('欢迎使用 Vercel AI SDK Demo CLI。输入 exit 退出。');
+askQuestion();
+```
+
+**5. 关于 API Key**
+在 `~/` 目录下确保存在 `.env` 文件，其中配置 `OPENAI_API_KEY=xxx` 供 SDK 使用。
